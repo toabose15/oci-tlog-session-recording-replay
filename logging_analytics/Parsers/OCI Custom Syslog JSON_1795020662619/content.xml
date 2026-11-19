@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<LoganContent xmlns="http://www.oracle.com/DataCenter/LogAnalyticsStd" content_version="3.127.1.0.0" name="content_ocid1.tenancy.oc1..XXX" oms_version="3.127.1.0.0">
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Linux Security Message</DisplayName>
+      <Description>Linux Security Message</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Parser oms_version="3.127.1.0.0" tokenize_orig_text="1" type="6">
+      <Name>OCI Custom Syslog JSON</Name>
+      <DisplayName>OCI Custom Syslog JSON</DisplayName>
+      <Description>OCI Custom Syslog JSON</Description>
+      <IsSingleLineContent>0</IsSingleLineContent>
+      <HeaderContent>$:0</HeaderContent>
+      <ExampleContent>{
+  "time": "2026-10-28T18:21:52.542Z",
+  "source": "cockpit-session-replay",
+  "subject": "/var/log/secure",
+  "type": "com.oraclecloud.logging.custom.Syslog",
+  "data": {
+    "message": "Oct 28 18:21:52 cockpit-session-replay sudo[460151]: pam_unix(sudo:session): session closed for user root"
+  }
+}</ExampleContent>
+      <IsSystem>0</IsSystem>
+      <Encoding>UTF-8</Encoding>
+      <Language>en_US</Language>
+      <ParserFields>
+         <ParserField>
+            <FieldSeq>1</FieldSeq>
+            <FieldName>time</FieldName>
+            <StructuredColInfo>$.time</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>2</FieldSeq>
+            <FieldName>srvrhostname</FieldName>
+            <StructuredColInfo>$.source</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>6</FieldSeq>
+            <FieldName>udfs45</FieldName>
+            <StructuredColInfo>$.data.message</StructuredColInfo>
+         </ParserField>
+      </ParserFields>
+      <WrittenOnce>0</WrittenOnce>
+      <IsDefaultParser>1</IsDefaultParser>
+   </Parser>
+   <FieldNameMaps>
+      <FieldNameMap>
+         <Name>udfs45</Name>
+         <DisplayName>Linux Security Message</DisplayName>
+      </FieldNameMap>
+   </FieldNameMaps>
+</LoganContent>

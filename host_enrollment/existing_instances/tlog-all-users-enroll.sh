@@ -1,0 +1,336 @@
+#!/usr/bin/env bash
+# Enroll Oracle Linux 8 and 9 hosts for all-user tlog session recording and OCI log collection.
+
+set -euo pipefail
+
+readonly TLOG_DIR="/var/log/tlog"
+readonly TLOG_JSONL="${TLOG_DIR}/tlog.jsonl"
+readonly RSYSLOG_CONF="/etc/rsyslog.d/30-tlog-jsonl.conf"
+readonly ROTATE_CONF="/etc/logrotate.d/tlog-jsonl"
+readonly SSSD_MAIN_CONF="/etc/sssd/sssd.conf"
+readonly SESSION_CONF="/etc/sssd/conf.d/20-tlog-session-recording.conf"
+readonly TLOG_CONF="/etc/tlog/tlog-rec-session.conf"
+readonly AGENT_USER="oracle-cloud-agent"
+readonly DEFAULT_LOCAL_RETENTION_DAYS=30
+
+accept_sensitive_input_capture=false
+repair_authselect=false
+local_retention_days="$DEFAULT_LOCAL_RETENTION_DAYS"
+run_id="$(date -u +%Y%m%dT%H%M%SZ)"
+authselect_backup_dir="/root/tlog-enrollment-backups/${run_id}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  sudo ./tlog-all-users-enroll.sh --accept-sensitive-input-capture [options]
+
+Options:
+  --repair-authselect           Rebuild the active authselect profile when it is
+                                invalid or cannot provide the required tlog
+                                authselect feature.
+                                The current PAM and NSS files are backed up;
+                                current PAM files are preserved in a new custom
+                                profile. Review the backup path first.
+  --accept-sensitive-input-capture
+                                Required acknowledgement. This configuration
+                                captures typed terminal input in recordings.
+  --local-retention-days DAYS   Retain rotated local tlog JSONL files for DAYS.
+                                Default: 30. Must be a positive whole number.
+  -h, --help                    Show this help.
+EOF
+}
+
+die() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+info() {
+  printf '==> %s\n' "$*"
+}
+
+warn() {
+  printf 'WARNING: %s\n' "$*" >&2
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --repair-authselect)
+      repair_authselect=true
+      shift
+      ;;
+    --accept-sensitive-input-capture)
+      accept_sensitive_input_capture=true
+      shift
+      ;;
+    --local-retention-days)
+      [[ $# -ge 2 ]] || die "--local-retention-days requires a value."
+      local_retention_days="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "Unknown option: $1"
+      ;;
+  esac
+done
+
+[[ $EUID -eq 0 ]] || die "Run this script with sudo or as root."
+
+[[ "$local_retention_days" =~ ^[1-9][0-9]*$ ]] || \
+  die "--local-retention-days must be a positive whole number; got '${local_retention_days}'."
+
+if [[ "$accept_sensitive_input_capture" != true ]]; then
+  die "Refusing to enable terminal input capture without --accept-sensitive-input-capture."
+fi
+
+[[ -r /etc/os-release ]] || die "Cannot identify the operating system: /etc/os-release is missing."
+# Verify this host can use the local-files SSSD recording model before changing authentication.
+# shellcheck disable=SC1091
+source /etc/os-release
+os_major="${VERSION_ID%%.*}"
+[[ "${ID:-}" == "ol" && ( "$os_major" == 8 || "$os_major" == 9 ) ]] || \
+  die "This script supports Oracle Linux 8 and 9 only; found ${ID:-unknown} ${VERSION_ID:-unknown}."
+
+authselect_feature="with-files-domain"
+recording_scope="all interactive users, including local /etc/passwd users and root"
+
+info "Checking prerequisites on Oracle Linux ${VERSION_ID}."
+command -v dnf >/dev/null || die "dnf is required."
+command -v authselect >/dev/null || die "authselect is required."
+
+# Rebuild a feature-capable SSSD profile while preserving the host's live PAM files.
+migrate_authselect_profile() {
+  local profile_name profile_dir
+
+  [[ -r /etc/authselect/system-auth && -r /etc/authselect/password-auth && -r /etc/nsswitch.conf ]] || \
+    die "Cannot recover authselect: required PAM or nsswitch files are missing."
+
+  install -d -o root -g root -m 0700 "$authselect_backup_dir"
+  cp -a /etc/authselect/system-auth /etc/authselect/password-auth /etc/nsswitch.conf \
+    "$authselect_backup_dir/"
+  authselect current > "$authselect_backup_dir/authselect-current.txt" 2>&1 || true
+
+  profile_name="oci-tlog-recovered-${run_id}"
+  profile_dir="/etc/authselect/custom/${profile_name}"
+  info "Creating custom authselect profile custom/${profile_name} from the current live PAM configuration."
+  authselect create-profile "$profile_name" -b sssd --symlink-meta
+  install -o root -g root -m 0644 /etc/authselect/system-auth "$profile_dir/system-auth"
+  install -o root -g root -m 0644 /etc/authselect/password-auth "$profile_dir/password-auth"
+
+  # Retain the base template so authselect feature conditionals remain available.
+  [[ -r "$profile_dir/nsswitch.conf" ]] || \
+    die "The new custom authselect profile is missing its base SSSD nsswitch template."
+
+  authselect select "custom/${profile_name}" --force
+  authselect check >/dev/null || die "The recovered authselect profile is still invalid. Restore ${authselect_backup_dir} and review the host PAM configuration."
+  info "authselect migration complete. Original PAM and NSS files were backed up in ${authselect_backup_dir}."
+}
+
+active_profile_supports_required_feature() {
+  local active_profile
+  active_profile="$(authselect current -r 2>/dev/null || true)"
+  [[ -n "$active_profile" ]] || return 1
+  authselect list-features "$active_profile" 2>/dev/null | grep -Fxq "$authselect_feature"
+}
+
+# Validate or explicitly repair authselect before changing PAM or SSSD state.
+if ! authselect check >/dev/null; then
+  if [[ "$repair_authselect" != true ]]; then
+    die "The current authselect profile is invalid. Rerun with --repair-authselect only after reviewing the host PAM customizations, or repair it manually."
+  fi
+  warn "The active authselect profile is invalid; preserving the current PAM files in a new custom profile."
+  migrate_authselect_profile
+fi
+
+if ! active_profile_supports_required_feature; then
+  if [[ "$repair_authselect" != true ]]; then
+    die "The active authselect profile does not provide ${authselect_feature}. After reviewing the host customization, rerun with --repair-authselect to migrate it to a feature-capable custom SSSD profile."
+  fi
+  warn "The active authselect profile cannot provide ${authselect_feature}; migrating the current PAM files to a feature-capable custom SSSD profile."
+  migrate_authselect_profile
+fi
+
+if ! getent passwd "$AGENT_USER" >/dev/null; then
+  die "The ${AGENT_USER} account is missing. Install and register the OCI unified monitoring agent first."
+fi
+
+info "Installing tlog, SSSD, rsyslog, and jq."
+dnf install -y tlog sssd rsyslog jq
+
+info "Making systemd journal persistent."
+install -d -m 0755 /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/10-tlog-persistent.conf <<'EOF'
+[Journal]
+Storage=persistent
+EOF
+restorecon -RF /etc/systemd/journald.conf.d 2>/dev/null || true
+systemctl restart systemd-journald
+
+# Preserve any separately managed SSSD session-recording policy for manual review.
+existing_recording_files="$(grep -RIl --exclude="$(basename "$SESSION_CONF")" \
+  '^[[:space:]]*\[session_recording\][[:space:]]*$' /etc/sssd 2>/dev/null || true)"
+if [[ -n "$existing_recording_files" ]]; then
+  die "An existing SSSD session-recording policy was found in: ${existing_recording_files//$'\n'/, }. Review and merge it manually rather than overwriting it."
+fi
+
+# Configure the local-files SSSD domain required for all-local-user recording.
+configure_files_domain_sssd() {
+  if [[ -e "$SSSD_MAIN_CONF" ]]; then
+    if ! grep -Eq '^[[:space:]]*enable_files_domain[[:space:]]*=[[:space:]]*true[[:space:]]*$' "$SSSD_MAIN_CONF"; then
+      if grep -Eq '^[[:space:]]*enable_files_domain[[:space:]]*=' "$SSSD_MAIN_CONF"; then
+        die "${SSSD_MAIN_CONF} explicitly disables or has an unsupported files-domain setting. Set enable_files_domain=true in its [sssd] section, then rerun."
+      fi
+      grep -Eq '^[[:space:]]*\[sssd\][[:space:]]*$' "$SSSD_MAIN_CONF" || \
+        die "${SSSD_MAIN_CONF} has no [sssd] section. Add enable_files_domain=true manually, then rerun."
+      info "Adding enable_files_domain=true to the existing SSSD configuration."
+      sssd_tmp="$(mktemp)"
+      awk '
+        /^\[sssd\][[:space:]]*$/ { in_sssd=1; print; next }
+        /^\[/ && in_sssd { print "enable_files_domain = true"; in_sssd=0 }
+        { print }
+        END { if (in_sssd) print "enable_files_domain = true" }
+      ' "$SSSD_MAIN_CONF" > "$sssd_tmp"
+      install -o root -g root -m 0600 "$sssd_tmp" "$SSSD_MAIN_CONF"
+      rm -f "$sssd_tmp"
+    fi
+  else
+    info "Creating minimal local-files SSSD configuration."
+    install -d -m 0755 /etc/sssd
+    cat > "$SSSD_MAIN_CONF" <<'EOF'
+[sssd]
+services = nss, pam
+enable_files_domain = true
+EOF
+  fi
+  chown root:root "$SSSD_MAIN_CONF"
+  chmod 0600 "$SSSD_MAIN_CONF"
+}
+
+configure_files_domain_sssd
+
+install -d -m 0755 /etc/sssd/conf.d
+cat > "$SESSION_CONF" <<'EOF'
+[session_recording]
+scope = all
+EOF
+chown root:root "$SESSION_CONF"
+chmod 0600 "$SESSION_CONF"
+restorecon -RF /etc/sssd 2>/dev/null || true
+
+# Enable the OS-specific authselect hook that overlays tlog on eligible sessions.
+if authselect current | grep -Fq "$authselect_feature"; then
+  info "authselect feature ${authselect_feature} is already enabled."
+else
+  info "Enabling authselect feature ${authselect_feature} (backup: before-tlog-session-recording-${run_id})."
+  authselect enable-feature "$authselect_feature" --backup="before-tlog-session-recording-${run_id}"
+fi
+systemctl enable --now sssd
+systemctl is-active --quiet sssd || die "SSSD did not become active. Review: journalctl -u sssd --no-pager"
+
+if [[ -e "$TLOG_CONF" ]]; then
+  backup="${TLOG_CONF}.pre-tlog-session-recording.${run_id}"
+  cp -a "$TLOG_CONF" "$backup"
+  info "Backed up the prior tlog configuration to ${backup}."
+fi
+
+info "Configuring tlog recording scope: ${recording_scope}."
+cat > "$TLOG_CONF" <<'EOF'
+{
+  "shell": "/bin/bash",
+  "notice": "\nATTENTION: This terminal session is being recorded.\n\n",
+  "log": {
+    "input": true,
+    "output": true,
+    "window": true
+  },
+  "journal": {
+    "augment": true
+  },
+  "writer": "journal"
+}
+EOF
+chown root:root "$TLOG_CONF"
+chmod 0644 "$TLOG_CONF"
+restorecon -v "$TLOG_CONF" 2>/dev/null || true
+
+agent_group="$(id -gn "$AGENT_USER")"
+info "Configuring rsyslog JSONL forwarding for ${AGENT_USER}."
+install -d -o root -g "$agent_group" -m 0750 "$TLOG_DIR"
+if [[ -L "$TLOG_JSONL" ]]; then
+  die "${TLOG_JSONL} is a symlink; refusing to use it."
+fi
+if [[ ! -e "$TLOG_JSONL" ]]; then
+  install -o root -g "$agent_group" -m 0640 /dev/null "$TLOG_JSONL"
+else
+  chown root:"$agent_group" "$TLOG_JSONL"
+  chmod 0640 "$TLOG_JSONL"
+fi
+
+cat > "$RSYSLOG_CONF" <<EOF
+# Managed by tlog-all-users-enroll.sh. Do not edit outside configuration management.
+template(name="TlogJsonLine" type="string" string="%msg%\\n")
+if (\$programname contains "tlog-rec-session") then {
+    action(
+        type="omfile"
+        file="${TLOG_JSONL}"
+        template="TlogJsonLine"
+        fileOwner="root"
+        fileGroup="${agent_group}"
+        fileCreateMode="0640"
+        dirCreateMode="0750"
+    )
+    stop
+}
+EOF
+
+cat > "$ROTATE_CONF" <<EOF
+${TLOG_JSONL} {
+    daily
+    rotate ${local_retention_days}
+    maxage ${local_retention_days}
+    missingok
+    notifempty
+    dateext
+    compress
+    delaycompress
+    copytruncate
+    create 0640 root ${agent_group}
+}
+EOF
+chmod 0644 "$RSYSLOG_CONF" "$ROTATE_CONF"
+restorecon -v "$RSYSLOG_CONF" "$ROTATE_CONF" "$TLOG_JSONL" 2>/dev/null || true
+
+rsyslogd -N1
+systemctl enable --now rsyslog
+systemctl restart rsyslog
+systemctl is-active --quiet rsyslog || die "rsyslog did not become active. Review: journalctl -u rsyslog --no-pager"
+
+agent_conf="/etc/unified-monitoring-agent/conf.d/fluentd_config/fluentd.conf"
+if [[ -r "$agent_conf" ]] && grep -Fq "$TLOG_JSONL" "$agent_conf"; then
+  info "OCI Unified Monitoring Agent is already configured to collect ${TLOG_JSONL}."
+else
+  warn "The local OCI agent configuration does not yet show ${TLOG_JSONL}. Ensure this host is in the OCI agent configuration host group and wait for its configuration downloader."
+fi
+
+cat <<EOF
+
+Enrollment complete.
+
+What this host now does:
+  - records interactive sessions for ${recording_scope};
+  - captures typed input and terminal output in the systemd journal;
+  - writes tlog JSON events to ${TLOG_JSONL};
+  - grants ${AGENT_USER} read access to that file;
+  - rotates local JSONL files daily and removes rotations older than ${local_retention_days} days.
+
+Validation (open a NEW SSH session first; the current shell is not retroactively recorded):
+  sudo tail -n 1 ${TLOG_JSONL} | jq -c '{rec, user, host, time, in_txt}'
+  sudo -u ${AGENT_USER} head -n 1 ${TLOG_JSONL}
+  sudo grep -n -F '${TLOG_JSONL}' ${agent_conf}
+
+Protect the OCI log, connector destination, Object Storage objects, and replay access: input capture can include credentials and secrets.
+EOF

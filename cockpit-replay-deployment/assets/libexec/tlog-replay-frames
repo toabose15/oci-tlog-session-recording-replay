@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""Decode one TLOG recording into browser-safe, timestamped terminal frames.
+
+The frames preserve the recording's ``timing`` grammar.  Only terminal output
+is rendered: typed commands are normally already represented by the terminal's
+recorded echo in ``out_txt``.  Rendering both streams would duplicate commands.
+"""
+
+import base64
+import json
+import re
+import sqlite3
+import sys
+from pathlib import Path
+
+
+DATABASE = "/var/lib/tlog-replay/catalog.db"
+RECORDINGS = Path("/var/lib/tlog-replay/recordings").resolve()
+RECORDING_ID = re.compile(r"[A-Za-z0-9-]{1,200}\Z")
+TOKEN = re.compile(
+    r"\+(?P<delay>\d+)"
+    r"|<(?P<input_text>\d+)"
+    r"|>(?P<output_text>\d+)"
+    r"|\[(?P<input_skip>\d+)/(?P<input_binary>\d+)"
+    r"|\](?P<output_skip>\d+)/(?P<output_binary>\d+)"
+    r"|=(?P<columns>\d+)x(?P<rows>\d+)"
+)
+
+
+def fail(message):
+    sys.exit(message)
+
+
+def valid_bytes(value):
+    if not isinstance(value, list) or any(
+        isinstance(item, bool) or not isinstance(item, int) or not 0 <= item <= 255
+        for item in value
+    ):
+        return b""
+    return bytes(value)
+
+
+def add_text_frame(frames, at_ms, text):
+    if text:
+        frames.append({"at_ms": at_ms, "text": text})
+
+
+def add_binary_frame(frames, at_ms, payload):
+    if payload:
+        frames.append(
+            {
+                "at_ms": at_ms,
+                "bytes_b64": base64.b64encode(payload).decode("ascii"),
+            }
+        )
+
+
+if len(sys.argv) != 2:
+    fail("Usage: tlog-replay-frames RECORDING_ID")
+
+recording_id = sys.argv[1]
+if not RECORDING_ID.fullmatch(recording_id):
+    fail("Invalid recording ID")
+
+with sqlite3.connect(DATABASE) as connection:
+    row = connection.execute(
+        "SELECT replay_file FROM recordings WHERE recording_id = ?", (recording_id,)
+    ).fetchone()
+
+if row is None:
+    fail("Recording was not found")
+
+replay_file = Path(row[0]).resolve()
+if RECORDINGS not in replay_file.parents or not replay_file.is_file():
+    fail("Replay file is unavailable")
+
+frames = []
+duration_ms = 0
+
+with replay_file.open("r", encoding="utf-8", errors="replace") as source:
+    for line in source:
+        try:
+            event = json.loads(line)
+            position = event.get("pos")
+            if isinstance(position, bool):
+                continue
+            position = int(position)
+            if position < 0:
+                continue
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+
+        timing = event.get("timing", "")
+        output_text = event.get("out_txt", "")
+        input_text = event.get("in_txt", "")
+        if not isinstance(timing, str):
+            timing = ""
+        if not isinstance(output_text, str):
+            output_text = ""
+        if not isinstance(input_text, str):
+            input_text = ""
+
+        output_binary = valid_bytes(event.get("out_bin", []))
+        input_offset = output_offset = 0
+        input_binary_offset = output_binary_offset = 0
+        current_ms = position
+        matched = False
+
+        for token in TOKEN.finditer(timing):
+            matched = True
+            groups = token.groupdict()
+            if groups["delay"] is not None:
+                current_ms += int(groups["delay"])
+            elif groups["input_text"] is not None:
+                input_offset += int(groups["input_text"])
+            elif groups["input_skip"] is not None:
+                input_offset += int(groups["input_skip"])
+                input_binary_offset += int(groups["input_binary"])
+            elif groups["output_text"] is not None:
+                length = int(groups["output_text"])
+                add_text_frame(frames, current_ms, output_text[output_offset : output_offset + length])
+                output_offset += length
+            elif groups["output_skip"] is not None:
+                output_offset += int(groups["output_skip"])
+                length = int(groups["output_binary"])
+                add_binary_frame(frames, current_ms, output_binary[output_binary_offset : output_binary_offset + length])
+                output_binary_offset += length
+            elif groups["columns"] is not None:
+                columns, rows = int(groups["columns"]), int(groups["rows"])
+                if columns > 0 and rows > 0:
+                    frames.append({"at_ms": current_ms, "columns": columns, "rows": rows})
+            duration_ms = max(duration_ms, current_ms)
+
+        if not matched:
+            # A partial recording without timing remains viewable, but has no
+            # fine-grained timing information.
+            add_text_frame(frames, position, output_text)
+            duration_ms = max(duration_ms, position)
+
+frames.sort(key=lambda frame: frame["at_ms"])
+print(
+    json.dumps(
+        {
+            "recording_id": recording_id,
+            "duration_ms": duration_ms,
+            "frames": frames,
+        },
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+)

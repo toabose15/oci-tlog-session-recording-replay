@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""Create selected TLOG catalogue exports for authenticated Cockpit users."""
+
+import argparse
+import base64
+import csv
+import io
+import json
+import sqlite3
+import subprocess
+import sys
+import zipfile
+from datetime import datetime, timezone
+from pathlib import Path
+from xml.sax.saxutils import escape
+
+
+DATABASE = Path("/var/lib/tlog-replay/catalog.db")
+RECORDINGS = Path("/var/lib/tlog-replay/recordings").resolve()
+PREPARE = "/usr/local/libexec/tlog-replay-prepare"
+MAX_RECORDINGS = 100
+MAX_JSONL_BYTES = 128 * 1024 * 1024
+
+
+def recording_id(value):
+    import re
+    if not re.fullmatch(r"[A-Za-z0-9-]{1,200}", value):
+        raise argparse.ArgumentTypeError("invalid recording ID")
+    return value
+
+
+def safe_spreadsheet_value(value):
+    value = "" if value is None else str(value)
+    return "'" + value if value.startswith(("=", "+", "-", "@")) else value
+
+
+def utc(epoch):
+    return "" if epoch is None else datetime.fromtimestamp(epoch, timezone.utc).isoformat()
+
+
+def load_recordings(recording_ids):
+    with sqlite3.connect(DATABASE) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = []
+        for recording_id in recording_ids:
+            row = connection.execute(
+                "SELECT recording_id, host, username, terminal, session_id, "
+                "start_epoch, end_epoch, event_count, availability, replay_file "
+                "FROM recordings WHERE recording_id = ?",
+                (recording_id,),
+            ).fetchone()
+            if row is None:
+                sys.exit(f"Recording was not found: {recording_id}")
+            rows.append(dict(row))
+    return rows
+
+
+def metadata_rows(recordings):
+    headings = [
+        "Recording ID", "Started UTC", "Ended UTC", "User", "Host", "Terminal",
+        "Session ID", "Events", "Availability",
+    ]
+    rows = []
+    for record in recordings:
+        rows.append([
+            record["recording_id"], utc(record["start_epoch"]), utc(record["end_epoch"]),
+            record["username"], record["host"], record["terminal"], record["session_id"],
+            record["event_count"], record["availability"],
+        ])
+    return headings, rows
+
+
+def csv_export(recordings):
+    headings, rows = metadata_rows(recordings)
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(headings)
+    writer.writerows([[safe_spreadsheet_value(value) for value in row] for row in rows])
+    return output.getvalue().encode("utf-8"), "tlog-recordings.csv", "text/csv;charset=utf-8"
+
+
+def column_name(index):
+    name = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        name = chr(65 + remainder) + name
+    return name
+
+
+def xlsx_export(recordings):
+    headings, rows = metadata_rows(recordings)
+    sheet_rows = [headings, *[[safe_spreadsheet_value(value) for value in row] for row in rows]]
+    xml_rows = []
+    for row_index, row in enumerate(sheet_rows, 1):
+        cells = "".join(
+            f'<c r="{column_name(column_index)}{row_index}" t="inlineStr">'
+            f'<is><t>{escape(str(value))}</t></is></c>'
+            for column_index, value in enumerate(row, 1)
+        )
+        xml_rows.append(f'<row r="{row_index}">{cells}</row>')
+    worksheet = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        '<sheetData>' + "".join(xml_rows) + '</sheetData></worksheet>'
+    )
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>')
+        archive.writestr("_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
+        archive.writestr("xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="TLOG recordings" sheetId="1" r:id="rId1"/></sheets></workbook>')
+        archive.writestr("xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>')
+        archive.writestr("xl/worksheets/sheet1.xml", worksheet)
+    return output.getvalue(), "tlog-recordings.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def jsonl_zip_export(recordings):
+    for record in recordings:
+        subprocess.run([PREPARE, record["recording_id"]], check=True, capture_output=True, text=True)
+    refreshed = load_recordings([record["recording_id"] for record in recordings])
+    total_size = 0
+    sources = []
+    for record in refreshed:
+        source = Path(record["replay_file"]).resolve()
+        if RECORDINGS not in source.parents or not source.is_file():
+            sys.exit(f"Replay file is unavailable: {record['recording_id']}")
+        total_size += source.stat().st_size
+        if total_size > MAX_JSONL_BYTES:
+            sys.exit("Selected JSONL files exceed the 128 MiB export limit")
+        sources.append((record["recording_id"], source))
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        for recording_id, source in sources:
+            archive.write(source, arcname=f"{recording_id}.jsonl")
+    return output.getvalue(), "tlog-recordings-jsonl.zip", "application/zip"
+
+
+parser = argparse.ArgumentParser(description="Export selected TLOG recordings")
+parser.add_argument("--format", choices=("csv", "xlsx", "jsonl-zip"), required=True)
+parser.add_argument("--recording-id", type=recording_id, action="append", required=True)
+arguments = parser.parse_args()
+
+recording_ids = list(dict.fromkeys(arguments.recording_id))
+if len(recording_ids) > MAX_RECORDINGS:
+    sys.exit(f"Select no more than {MAX_RECORDINGS} recordings per export")
+recordings = load_recordings(recording_ids)
+
+if arguments.format == "csv":
+    content, filename, content_type = csv_export(recordings)
+elif arguments.format == "xlsx":
+    content, filename, content_type = xlsx_export(recordings)
+else:
+    content, filename, content_type = jsonl_zip_export(recordings)
+
+print(json.dumps({"filename": filename, "content_type": content_type, "data_b64": base64.b64encode(content).decode("ascii")}, separators=(",", ":")))

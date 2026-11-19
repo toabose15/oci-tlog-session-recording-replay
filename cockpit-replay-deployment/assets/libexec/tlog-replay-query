@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Read-only, paginated query interface for the TLOG replay catalogue."""
+
+import argparse
+import json
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+
+DATABASE = Path("/var/lib/tlog-replay/catalog.db")
+RECORDINGS = Path("/var/lib/tlog-replay/recordings").resolve()
+SORT_COLUMNS = {"started": "start_epoch", "recording-id": "recording_id", "user": "username", "host": "host", "events": "event_count", "state": "availability"}
+
+def utc(epoch):
+    return None if epoch is None else datetime.fromtimestamp(epoch, timezone.utc).isoformat()
+
+def column_exists(connection, table, column):
+    return any(row[1] == column for row in connection.execute(f"PRAGMA table_info({table})"))
+
+def main():
+    parser = argparse.ArgumentParser(description="Read-only TLOG replay catalogue queries.")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("filters")
+    listing = commands.add_parser("list")
+    listing.add_argument("--user"); listing.add_argument("--host"); listing.add_argument("--recording-id"); listing.add_argument("--search")
+    listing.add_argument("--after", type=float); listing.add_argument("--before", type=float)
+    listing.add_argument("--limit", type=int, default=50); listing.add_argument("--offset", type=int, default=0)
+    listing.add_argument("--sort-by", choices=sorted(SORT_COLUMNS), default="started")
+    listing.add_argument("--sort-direction", choices=("asc", "desc"), default="desc")
+    args = parser.parse_args()
+    connection = sqlite3.connect(DATABASE); connection.row_factory = sqlite3.Row
+    try:
+        if args.command == "filters":
+            bounds = connection.execute("SELECT MIN(start_epoch), MAX(end_epoch), COUNT(*) FROM recordings").fetchone()
+            users = [row[0] for row in connection.execute("SELECT DISTINCT username FROM recordings WHERE username IS NOT NULL ORDER BY username")]
+            hosts = [row[0] for row in connection.execute("SELECT DISTINCT host FROM recordings WHERE host IS NOT NULL ORDER BY host")]
+            print(json.dumps({"users": users, "hosts": hosts, "earliest_recording_utc": utc(bounds[0]), "latest_recording_utc": utc(bounds[1]), "recording_count": bounds[2]})); return
+        where, parameters = [], []
+        if args.user: where.append("username = ?"); parameters.append(args.user)
+        if args.host: where.append("host = ?"); parameters.append(args.host)
+        if args.recording_id: where.append("recording_id = ?"); parameters.append(args.recording_id)
+        if args.search:
+            # Treat the text box as a literal, case-insensitive partial match.  Escaping
+            # prevents % and _ from accidentally turning into SQL wildcards.
+            term = args.search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{term}%"
+            where.append("(username LIKE ? ESCAPE '\\' COLLATE NOCASE OR host LIKE ? ESCAPE '\\' COLLATE NOCASE OR recording_id LIKE ? ESCAPE '\\' COLLATE NOCASE)")
+            parameters.extend((pattern, pattern, pattern))
+        if args.after is not None: where.append("end_epoch >= ?"); parameters.append(args.after)
+        if args.before is not None: where.append("start_epoch <= ?"); parameters.append(args.before)
+        condition = (" WHERE " + " AND ".join(where)) if where else ""
+        total = connection.execute("SELECT COUNT(*) FROM recordings" + condition, parameters).fetchone()[0]
+        has_availability = column_exists(connection, "recordings", "availability")
+        availability = "availability" if has_availability else "'ready' AS availability"
+        sort_column = SORT_COLUMNS[args.sort_by] if args.sort_by != "state" or has_availability else "recording_id"
+        limit, offset = max(1, min(args.limit, 100)), max(0, args.offset)
+        rows = connection.execute("SELECT recording_id, host, username, terminal, session_id, start_epoch, end_epoch, " + f"event_count, {availability}, replay_file FROM recordings" + condition + f" ORDER BY {sort_column} {args.sort_direction.upper()}, recording_id ASC LIMIT ? OFFSET ?", [*parameters, limit, offset])
+        recordings = []
+        for row in rows:
+            item = dict(row); replay_file = item.pop("replay_file", "")
+            try: item["cached"] = RECORDINGS in Path(replay_file).resolve().parents and Path(replay_file).is_file()
+            except OSError: item["cached"] = False
+            item["started_utc"] = utc(item.pop("start_epoch")); item["ended_utc"] = utc(item.pop("end_epoch")); recordings.append(item)
+        print(json.dumps({"recordings": recordings, "total": total, "limit": limit, "offset": offset}))
+    finally:
+        connection.close()
+
+if __name__ == "__main__":
+    main()

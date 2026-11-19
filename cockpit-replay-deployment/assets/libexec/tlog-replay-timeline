@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Return trustworthy timeline metadata for a catalogued TLOG recording."""
+
+import json
+import re
+import sqlite3
+import sys
+from pathlib import Path
+
+
+DATABASE = "/var/lib/tlog-replay/catalog.db"
+RECORDINGS = Path("/var/lib/tlog-replay/recordings").resolve()
+RECORDING_ID = re.compile(r"[A-Za-z0-9-]{1,200}\Z")
+TIMING_DELAY = re.compile(r"\+(\d+)")
+
+
+def fail(message):
+    sys.exit(message)
+
+
+if len(sys.argv) != 2:
+    fail("Usage: tlog-replay-timeline RECORDING_ID")
+
+recording_id = sys.argv[1]
+if not RECORDING_ID.fullmatch(recording_id):
+    fail("Invalid recording ID")
+
+with sqlite3.connect(DATABASE) as connection:
+    row = connection.execute(
+        "SELECT replay_file FROM recordings WHERE recording_id = ?", (recording_id,)
+    ).fetchone()
+
+if row is None:
+    fail("Recording was not found")
+
+replay_file = Path(row[0]).resolve()
+if RECORDINGS not in replay_file.parents or not replay_file.is_file():
+    fail("Replay file is unavailable")
+
+duration_ms = 0
+event_count = 0
+timed_event_count = 0
+
+with replay_file.open("r", encoding="utf-8", errors="replace") as source:
+    for line in source:
+        try:
+            event = json.loads(line)
+            position = event.get("pos")
+            if isinstance(position, bool):
+                continue
+            position = int(position)
+            if position < 0:
+                continue
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+
+        event_count += 1
+        timing = event.get("timing", "")
+        if not isinstance(timing, str):
+            timing = ""
+        delays_ms = sum(int(delay) for delay in TIMING_DELAY.findall(timing))
+        if timing:
+            timed_event_count += 1
+        duration_ms = max(duration_ms, position + delays_ms)
+
+print(
+    json.dumps(
+        {
+            "recording_id": recording_id,
+            "duration_ms": duration_ms,
+            "event_count": event_count,
+            "timed_event_count": timed_event_count,
+        },
+        separators=(",", ":"),
+    )
+)

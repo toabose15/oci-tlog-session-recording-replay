@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""Retrieve one indexed recording from Object Storage into the short-lived replay cache."""
+
+import gzip
+import hashlib
+import json
+import os
+import sqlite3
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+BASE = Path("/var/lib/tlog-replay")
+ARCHIVES, RECORDINGS = BASE / "archives", BASE / "recordings"
+DATABASE = BASE / "catalog.db"
+BUCKET = "terminal-session-raw"
+
+
+def now(): return datetime.now(timezone.utc).isoformat()
+
+
+def inside(directory, path):
+    try: Path(path).resolve().relative_to(directory.resolve()); return True
+    except (OSError, ValueError): return False
+
+
+def oci(arguments):
+    environment = os.environ.copy(); environment["OCI_CLI_AUTH"] = "instance_principal"
+    return subprocess.run(["oci", *arguments], check=True, text=True, capture_output=True, env=environment)
+
+
+def event_key(event):
+    if event.get("id") is not None: return f"{event['rec']}:{event['id']}"
+    return f"{event['rec']}:{hashlib.sha256(json.dumps(event, sort_keys=True).encode()).hexdigest()}"
+
+
+def main():
+    if len(sys.argv) != 2: sys.exit("Usage: tlog-replay-prepare RECORDING_ID")
+    recording_id = sys.argv[1]
+    if not recording_id or len(recording_id) > 200 or any(char not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-" for char in recording_id):
+        sys.exit("Invalid recording ID")
+    connection = sqlite3.connect(DATABASE)
+    try:
+        row = connection.execute("SELECT replay_file,availability FROM recordings WHERE recording_id=?", (recording_id,)).fetchone()
+        if not row: sys.exit("Recording was not found in the replay catalogue")
+        replay_file = Path(row[0]).resolve()
+        if inside(RECORDINGS, replay_file) and replay_file.is_file():
+            print(json.dumps({"recording_id": recording_id, "state": "ready", "cached": True})); return
+        objects = connection.execute("""
+          SELECT a.object_name,a.local_path FROM archives a JOIN recording_archives ra ON ra.object_name=a.object_name
+          WHERE ra.recording_id=? ORDER BY a.created_at
+        """, (recording_id,)).fetchall()
+        if not objects:
+            connection.execute("UPDATE recordings SET availability='missing' WHERE recording_id=?", (recording_id,)); connection.commit()
+            sys.exit("No Object Storage archive mapping exists for this recording")
+        events = {}
+        for object_name, local_path in objects:
+            path = Path(local_path) if local_path else ARCHIVES / (hashlib.sha256(object_name.encode()).hexdigest() + ".log.gz")
+            if not (inside(ARCHIVES, path) and path.is_file()):
+                partial = path.with_suffix(".part"); partial.unlink(missing_ok=True)
+                oci(["os", "object", "get", "--bucket-name", BUCKET, "--name", object_name, "--file", str(partial)])
+                partial.replace(path)
+                connection.execute("UPDATE archives SET local_path=?,downloaded_at=? WHERE object_name=?", (str(path), now(), object_name))
+            with gzip.open(path, "rt", encoding="utf-8", errors="replace") as archive:
+                for line in archive:
+                    try:
+                        outer = json.loads(line); inner = outer.get("data", {}).get("message")
+                        event = json.loads(inner) if isinstance(inner, str) else inner
+                        if isinstance(event, dict) and event.get("rec") == recording_id: events[event_key(event)] = event
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        continue
+        if not events:
+            connection.execute("UPDATE recordings SET availability='missing' WHERE recording_id=?", (recording_id,)); connection.commit()
+            sys.exit("Mapped archive did not contain replay events")
+        replay_file.parent.mkdir(parents=True, exist_ok=True)
+        partial = replay_file.with_suffix(".part")
+        with partial.open("w", encoding="utf-8") as output:
+            for event in sorted(events.values(), key=lambda item: (item.get("time", 0), item.get("id", 0))): output.write(json.dumps(event, separators=(",", ":")) + "\n")
+        partial.replace(replay_file)
+        connection.execute("UPDATE recordings SET availability='ready',cache_updated_at=?,last_verified_at=? WHERE recording_id=?", (now(), now(), recording_id)); connection.commit()
+        print(json.dumps({"recording_id": recording_id, "state": "ready", "cached": False, "event_count": len(events)}))
+    finally:
+        connection.close()
+
+
+if __name__ == "__main__":
+    try: main()
+    except (OSError, sqlite3.Error, subprocess.CalledProcessError) as error:
+        print(f"Replay preparation failed: {error}", file=sys.stderr); sys.exit(1)

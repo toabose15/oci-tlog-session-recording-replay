@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""Return one prepared TLOG recording as safe browser-playback events."""
+
+import json
+import os
+import pwd
+import re
+import sqlite3
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+DATABASE = "/var/lib/tlog-replay/catalog.db"
+RECORDINGS = Path("/var/lib/tlog-replay/recordings").resolve()
+SAFE_VALUE = re.compile(r"[^A-Za-z0-9@._:/=-]")
+
+
+def clean(value):
+    return SAFE_VALUE.sub("_", str(value or "unknown"))[:512]
+
+
+def actor():
+    if os.environ.get("SUDO_USER"):
+        return os.environ["SUDO_USER"]
+    if os.environ.get("PKEXEC_UID", "").isdigit():
+        try:
+            return pwd.getpwuid(int(os.environ["PKEXEC_UID"])).pw_name
+        except KeyError:
+            pass
+    return os.environ.get("LOGNAME") or os.environ.get("USER") or "unknown"
+
+
+def audit(recording_id, host, username):
+    message = " ".join([
+        "action=replay_browser_load",
+        f"actor={clean(actor())}",
+        f"recording_id={clean(recording_id)}",
+        f"host={clean(host)}",
+        f"recorded_user={clean(username)}",
+        f"utc={datetime.now(timezone.utc).isoformat()}",
+        f"euid={os.geteuid()}",
+    ])
+    subprocess.run(
+        ["/usr/bin/logger", "-p", "authpriv.notice", "-t", "tlog-replay-audit", message],
+        check=True,
+    )
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit("Usage: tlog-replay-events RECORDING_ID")
+    recording_id = sys.argv[1]
+    if not re.fullmatch(r"[A-Za-z0-9-]{1,200}", recording_id):
+        sys.exit("Invalid recording ID")
+    connection = sqlite3.connect(DATABASE)
+    try:
+        row = connection.execute(
+            "SELECT replay_file,host,username,start_epoch,end_epoch,event_count "
+            "FROM recordings WHERE recording_id=?", (recording_id,)
+        ).fetchone()
+    finally:
+        connection.close()
+    if row is None:
+        sys.exit("Recording was not found")
+    replay_file, host, username, start_epoch, end_epoch, event_count = row
+    replay_file = Path(replay_file).resolve()
+    if RECORDINGS not in replay_file.parents or not replay_file.is_file():
+        sys.exit("Replay file is unavailable; prepare it first")
+
+    events = []
+    with replay_file.open("r", encoding="utf-8", errors="replace") as source:
+        for line in source:
+            try:
+                event = json.loads(line)
+                event_time = event.get("time")
+                if not isinstance(event_time, (int, float)):
+                    continue
+                input_text = event.get("in_txt")
+                output_text = event.get("out_txt")
+                events.append({
+                    "time": event_time,
+                    "sequence": event.get("id", 0),
+                    "input": input_text if isinstance(input_text, str) else "",
+                    "output": output_text if isinstance(output_text, str) else "",
+                })
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+    events.sort(key=lambda item: (item["time"], item["sequence"]))
+    if not events:
+        sys.exit("Recording contains no playable events")
+    # Keep browser playback subject to the same non-bypassable audit rule as
+    # the command-line tlog-play helper.
+    audit(recording_id, host, username)
+    print(json.dumps({
+        "recording_id": recording_id,
+        "host": host,
+        "username": username,
+        "event_count": event_count,
+        "started_epoch": start_epoch,
+        "ended_epoch": end_epoch,
+        "first_event_time": events[0]["time"],
+        "last_event_time": events[-1]["time"],
+        "events": events,
+    }, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, sqlite3.Error, subprocess.CalledProcessError) as error:
+        sys.exit(f"Unable to load replay events: {error}")

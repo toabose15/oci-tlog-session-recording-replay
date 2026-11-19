@@ -1,0 +1,353 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<LoganContent xmlns="http://www.oracle.com/DataCenter/LogAnalyticsStd" content_version="3.127.1.0.0" name="content_ocid1.tenancy.oc1..XXX" oms_version="3.127.1.0.0">
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>SSH User</DisplayName>
+      <Description>SSH User</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>SSH Source IP</DisplayName>
+      <Description>SSH Source IP</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>SSH Source Port</DisplayName>
+      <Description>SSH Source Port</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>SSH Authentication Method</DisplayName>
+      <Description>SSH Authentication Method</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Linux Security Message</DisplayName>
+      <Description>Linux Security Message</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Sudo User</DisplayName>
+      <Description>Sudo User</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Sudo TTY</DisplayName>
+      <Description>Sudo TTY</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Sudo Working Directory</DisplayName>
+      <Description>Sudo Working Directory</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Sudo Run As User</DisplayName>
+      <Description>Sudo Run As User</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Sudo Command</DisplayName>
+      <Description>Sudo Command</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Parser oms_version="3.127.1.0.0" tokenize_orig_text="1" type="6">
+      <Name>OCI Custom Syslog JSON</Name>
+      <DisplayName>OCI Custom Syslog JSON</DisplayName>
+      <Description>OCI Custom Syslog JSON</Description>
+      <IsSingleLineContent>0</IsSingleLineContent>
+      <HeaderContent>$:0</HeaderContent>
+      <ExampleContent>{
+  "time": "2026-10-28T18:21:52.542Z",
+  "source": "cockpit-session-replay",
+  "subject": "/var/log/secure",
+  "type": "com.oraclecloud.logging.custom.Syslog",
+  "data": {
+    "message": "Oct 28 18:21:52 cockpit-session-replay sudo[460151]: pam_unix(sudo:session): session closed for user root"
+  }
+}</ExampleContent>
+      <IsSystem>0</IsSystem>
+      <Encoding>UTF-8</Encoding>
+      <Language>en_US</Language>
+      <ParserFields>
+         <ParserField>
+            <FieldSeq>1</FieldSeq>
+            <FieldName>time</FieldName>
+            <StructuredColInfo>$.time</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>2</FieldSeq>
+            <FieldName>srvrhostname</FieldName>
+            <StructuredColInfo>$.source</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>6</FieldSeq>
+            <FieldName>udfs45</FieldName>
+            <StructuredColInfo>$.data.message</StructuredColInfo>
+         </ParserField>
+      </ParserFields>
+      <WrittenOnce>0</WrittenOnce>
+      <IsDefaultParser>1</IsDefaultParser>
+   </Parser>
+   <Source configWarningSettings="0" name="com.oraclecloud.logging.custom.Syslog" oms_version="3.127.1.0.0">
+      <SourceType>os_file</SourceType>
+      <TargetTypes>
+         <TargetType>omc_host_linux</TargetType>
+      </TargetTypes>
+      <DisplayName>com.oraclecloud.logging.custom.Syslog</DisplayName>
+      <Description>Parses SSH and sudo events from /var/log/secure</Description>
+      <IsSystem>0</IsSystem>
+      <IsSecureContent>1</IsSecureContent>
+      <Patterns>
+         <Pattern>
+            <Value>/var/log/secure</Value>
+            <Description>OCI Logging delivered Linux security events</Description>
+            <IsInclude>1</IsInclude>
+            <InUse>1</InUse>
+            <IsSystem>0</IsSystem>
+            <IsEnabled>1</IsEnabled>
+         </Pattern>
+      </Patterns>
+      <Parsers>
+         <Parser>
+            <ParserSeq>1</ParserSeq>
+            <ParserName>OCI Custom Syslog JSON</ParserName>
+         </Parser>
+      </Parsers>
+      <ExtFieldDefinitions>
+         <ExtFieldDefinition>
+            <BaseFieldName>udfs45</BaseFieldName>
+            <BaseFieldLogText>Oct 29 14:10:15 mywebserver sudo[1573759]:  opc : TTY=pts/0 ; PWD=/home/opc ; USER=root ; COMMAND=/usr/bin/id</BaseFieldLogText>
+            <RegexExpression>^.*sudo\[\d+\]:\s+{udfs46:\S+}\s*:\s+TTY={udfs47:[^;]+}\s*;\s+PWD={udfs48:[^;]+}\s*;\s+USER={udfs49:[^;]+}\s*;\s+COMMAND={udfs50:.+}$</RegexExpression>
+            <ExtFieldName>udfs46</ExtFieldName>
+            <ExtFieldName>udfs50</ExtFieldName>
+            <ExtFieldName>udfs49</ExtFieldName>
+            <ExtFieldName>udfs48</ExtFieldName>
+            <ExtFieldName>udfs47</ExtFieldName>
+            <IsSystem>0</IsSystem>
+            <IsEnabled>1</IsEnabled>
+         </ExtFieldDefinition>
+         <ExtFieldDefinition>
+            <BaseFieldName>udfs45</BaseFieldName>
+            <BaseFieldLogText>Oct 29 12:12:11 mywebserver sshd[1565170]: Accepted publickey for opc from 152.57.129.23 port 55532 ssh2: RSA SHA256:example</BaseFieldLogText>
+            <RegexExpression>^.*sshd(?:-session)?\[\d+\]:\s+Accepted\s+{udfs54:\S+}\s+for\s+{udfs51:\S+}\s+from\s+{udfs52:\S+}\s+port\s+{udfs53:\d+}\s+ssh2:\s+.+$</RegexExpression>
+            <ExtFieldName>udfs51</ExtFieldName>
+            <ExtFieldName>udfs52</ExtFieldName>
+            <ExtFieldName>udfs53</ExtFieldName>
+            <ExtFieldName>udfs54</ExtFieldName>
+            <IsSystem>0</IsSystem>
+            <IsEnabled>1</IsEnabled>
+         </ExtFieldDefinition>
+      </ExtFieldDefinitions>
+      <SourceFunctions>
+         <SourceFunction lookupMode="0" name="Geolocation" order="101" overrideOutputFields="1">
+            <SourceInputFields>
+               <InputField lkCol="IP Field" order="1" service="FIELD">udfs52</InputField>
+            </SourceInputFields>
+            <SourceOutputFields>
+               <OutputField lkCol="Continent" order="1" service="FIELD">continentclnt</OutputField>
+               <OutputField lkCol="Country Code" order="4" service="FIELD">countrycodeclnt</OutputField>
+               <OutputField lkCol="Coordinates" order="8" service="FIELD">geolocclnt</OutputField>
+               <OutputField lkCol="Continent Code" order="2" service="FIELD">continentcodeclnt</OutputField>
+               <OutputField lkCol="City" order="7" service="FIELD">cityclnt</OutputField>
+               <OutputField lkCol="Country" order="3" service="FIELD">countryclnt</OutputField>
+               <OutputField lkCol="State Code" order="6" service="FIELD">regioncodeclnt</OutputField>
+               <OutputField lkCol="State" order="5" service="FIELD">regionclnt</OutputField>
+            </SourceOutputFields>
+            <SourceFunctionFeatures>
+               <FunctionFeature>
+                  <Name>Geolocation</Name>
+               </FunctionFeature>
+               <FunctionFeature>
+                  <Name>ThreatIntelligence</Name>
+               </FunctionFeature>
+            </SourceFunctionFeatures>
+            <IsSystem>0</IsSystem>
+            <IsEnabled>1</IsEnabled>
+         </SourceFunction>
+      </SourceFunctions>
+      <IsHidden>0</IsHidden>
+      <IsSMAEnabled>0</IsSMAEnabled>
+   </Source>
+   <FieldNameMaps>
+      <FieldNameMap>
+         <Name>udfs51</Name>
+         <DisplayName>SSH User</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs52</Name>
+         <DisplayName>SSH Source IP</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs53</Name>
+         <DisplayName>SSH Source Port</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs54</Name>
+         <DisplayName>SSH Authentication Method</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs45</Name>
+         <DisplayName>Linux Security Message</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs46</Name>
+         <DisplayName>Sudo User</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs47</Name>
+         <DisplayName>Sudo TTY</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs48</Name>
+         <DisplayName>Sudo Working Directory</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs49</Name>
+         <DisplayName>Sudo Run As User</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs50</Name>
+         <DisplayName>Sudo Command</DisplayName>
+      </FieldNameMap>
+   </FieldNameMaps>
+</LoganContent>

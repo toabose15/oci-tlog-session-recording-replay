@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<LoganContent xmlns="http://www.oracle.com/DataCenter/LogAnalyticsStd" content_version="3.127.1.0.0" name="content_ocid1.tenancy.oc1..XXX" oms_version="3.127.1.0.0">
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Audit Session ID</DisplayName>
+      <Description>Audit Session ID</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Audit Executable</DisplayName>
+      <Description>Audit Executable</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Audit Command</DisplayName>
+      <Description>Audit Command</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Audit Process</DisplayName>
+      <Description>Audit Process</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Audit Target Command</DisplayName>
+      <Description>Audit Target Command</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Audit Argument Count</DisplayName>
+      <Description>Audit Argument Count</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Audit Event Type</DisplayName>
+      <Description>Audit Event Type</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Audit Login UID</DisplayName>
+      <Description>Audit Login UID</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Field oms_version="3.127.1.0.0">
+      <DisplayName>Audit Effective UID</DisplayName>
+      <Description>Audit Effective UID</Description>
+      <FieldType>1</FieldType>
+      <IsSystem>0</IsSystem>
+      <IsPrimary>1</IsPrimary>
+      <DataType>STRING</DataType>
+      <IsMetricKeyEligible>0</IsMetricKeyEligible>
+      <IsMetricValueEligible>0</IsMetricValueEligible>
+      <FacetEligible>1</FacetEligible>
+      <RangeFacetEligible>0</RangeFacetEligible>
+      <TableEligible>1</TableEligible>
+      <FacetPriority>1</FacetPriority>
+      <Summarizable>1</Summarizable>
+      <HighCardinality>1</HighCardinality>
+      <LargeData>0</LargeData>
+      <MultiValued>0</MultiValued>
+      <SMAEnabledSetting>0</SMAEnabledSetting>
+   </Field>
+   <Parser oms_version="3.127.1.0.0" tokenize_orig_text="1" type="6">
+      <Name>OCI Custom Auditd JSON</Name>
+      <DisplayName>OCI Custom Auditd JSON</DisplayName>
+      <Description>Parses Auditd events delivered through OCI Logging</Description>
+      <IsSingleLineContent>0</IsSingleLineContent>
+      <HeaderContent>$:0</HeaderContent>
+      <ExampleContent>{
+  "id": "sample-audit-execve",
+  "time": "2026-10-29T14:36:03Z",
+  "source": "MyWebServer",
+  "subject": "/var/log/audit/audit.log",
+  "type": "com.oraclecloud.logging.custom.Auditd",
+  "data": {
+    "header.type": "EXECVE",
+    "header.msg": "audit(1793284563.097:155321)",
+    "body.auid": "1000",
+    "body.uid": "0",
+    "body.ses": "1533",
+    "body.a0": "sudo",
+	"body.msg.exe": "/usr/bin/id",
+    "body.msg.comm": "id",
+    "body.a1": "/usr/bin/id",
+    "body.argc": "2"
+  }
+}</ExampleContent>
+      <IsSystem>0</IsSystem>
+      <Encoding>UTF-8</Encoding>
+      <Language>en_US</Language>
+      <ParserFields>
+         <ParserField>
+            <FieldSeq>1</FieldSeq>
+            <FieldName>time</FieldName>
+            <StructuredColInfo>$.time</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>2</FieldSeq>
+            <FieldName>srvrhostname</FieldName>
+            <StructuredColInfo>$.source</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>3</FieldSeq>
+            <FieldName>udfs37</FieldName>
+            <StructuredColInfo>$.data.header.type</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>4</FieldSeq>
+            <FieldName>udfs38</FieldName>
+            <StructuredColInfo>$.data.body.auid</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>5</FieldSeq>
+            <FieldName>udfs39</FieldName>
+            <StructuredColInfo>$.data.body.uid</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>6</FieldSeq>
+            <FieldName>udfs40</FieldName>
+            <StructuredColInfo>$.data.body.ses</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>12</FieldSeq>
+            <FieldName>udfs55</FieldName>
+            <StructuredColInfo>$.data.body.a0</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>13</FieldSeq>
+            <FieldName>udfs56</FieldName>
+            <StructuredColInfo>$.data.body.a1</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>14</FieldSeq>
+            <FieldName>udfs57</FieldName>
+            <StructuredColInfo>$.data.body.argc</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>15</FieldSeq>
+            <FieldName>udfs41</FieldName>
+            <StructuredColInfo>$.data.body.msg.exe</StructuredColInfo>
+         </ParserField>
+         <ParserField>
+            <FieldSeq>16</FieldSeq>
+            <FieldName>udfs42</FieldName>
+            <StructuredColInfo>$.data.body.msg.comm</StructuredColInfo>
+         </ParserField>
+      </ParserFields>
+      <WrittenOnce>0</WrittenOnce>
+      <IsDefaultParser>1</IsDefaultParser>
+   </Parser>
+   <Source configWarningSettings="0" name="com.oraclecloud.logging.custom.Auditd" oms_version="3.127.1.0.0">
+      <SourceType>os_file</SourceType>
+      <TargetTypes>
+         <TargetType>omc_host_linux</TargetType>
+      </TargetTypes>
+      <DisplayName>com.oraclecloud.logging.custom.Auditd</DisplayName>
+      <Description>Parses kernel-level audit events</Description>
+      <IsSystem>0</IsSystem>
+      <IsSecureContent>1</IsSecureContent>
+      <Patterns>
+         <Pattern>
+            <Value>/var/log/audit/audit.log</Value>
+            <Description>OCI Logging delivered Auditd events</Description>
+            <IsInclude>1</IsInclude>
+            <InUse>1</InUse>
+            <IsSystem>0</IsSystem>
+            <IsEnabled>1</IsEnabled>
+         </Pattern>
+      </Patterns>
+      <Parsers>
+         <Parser>
+            <ParserSeq>1</ParserSeq>
+            <ParserName>OCI Custom Auditd JSON</ParserName>
+         </Parser>
+      </Parsers>
+      <IsHidden>0</IsHidden>
+      <IsSMAEnabled>0</IsSMAEnabled>
+   </Source>
+   <FieldNameMaps>
+      <FieldNameMap>
+         <Name>udfs40</Name>
+         <DisplayName>Audit Session ID</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs41</Name>
+         <DisplayName>Audit Executable</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs42</Name>
+         <DisplayName>Audit Command</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs55</Name>
+         <DisplayName>Audit Process</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs56</Name>
+         <DisplayName>Audit Target Command</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs57</Name>
+         <DisplayName>Audit Argument Count</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs37</Name>
+         <DisplayName>Audit Event Type</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs38</Name>
+         <DisplayName>Audit Login UID</DisplayName>
+      </FieldNameMap>
+      <FieldNameMap>
+         <Name>udfs39</Name>
+         <DisplayName>Audit Effective UID</DisplayName>
+      </FieldNameMap>
+   </FieldNameMaps>
+</LoganContent>

@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""Index one year of TLOG Object Storage archives; keep only seven days locally."""
+
+import gzip
+import hashlib
+import json
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+BASE = Path("/var/lib/tlog-replay")
+ARCHIVES, RECORDINGS = BASE / "archives", BASE / "recordings"
+DATABASE = BASE / "catalog.db"
+BUCKET, PREFIX = "terminal-session-raw", "tlog-raw//"
+METADATA_RETENTION_DAYS = 365
+LOCAL_CACHE_DAYS = 7
+
+
+def now(): return datetime.now(timezone.utc)
+
+
+def oci(arguments):
+    environment = os.environ.copy()
+    environment["OCI_CLI_AUTH"] = "instance_principal"
+    return subprocess.run(["oci", *arguments], check=True, text=True, capture_output=True, env=environment).stdout
+
+
+def parse_time(value): return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def inside(directory, path):
+    try:
+        Path(path).resolve().relative_to(directory.resolve()); return True
+    except (OSError, ValueError): return False
+
+
+def archive_path(name):
+    return ARCHIVES / (hashlib.sha256(name.encode()).hexdigest() + ".log.gz")
+
+
+def recording_path(recording_id):
+    safe = "".join(char if char.isalnum() or char in "-._" else "_" for char in recording_id)
+    return RECORDINGS / f"{safe}.jsonl"
+
+
+def add_column(connection, table, definition):
+    name = definition.split()[0]
+    columns = {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
+    if name not in columns:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {definition}")
+
+
+def initialise(connection):
+    connection.executescript("""
+      PRAGMA journal_mode=WAL;
+      PRAGMA foreign_keys=ON;
+      CREATE TABLE IF NOT EXISTS archives (
+        object_name TEXT PRIMARY KEY, created_at TEXT NOT NULL,
+        local_path TEXT NOT NULL, downloaded_at TEXT NOT NULL, indexed_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS events (
+        event_key TEXT PRIMARY KEY, recording_id TEXT NOT NULL, event_sequence INTEGER,
+        event_position INTEGER, event_time REAL, host TEXT, username TEXT,
+        session_id TEXT, terminal TEXT, event_json TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS events_recording_id ON events(recording_id);
+      CREATE TABLE IF NOT EXISTS recordings (
+        recording_id TEXT PRIMARY KEY, host TEXT, username TEXT, terminal TEXT,
+        session_id TEXT, start_epoch REAL, end_epoch REAL, event_count INTEGER NOT NULL,
+        replay_file TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS recording_archives (
+        recording_id TEXT NOT NULL, object_name TEXT NOT NULL,
+        PRIMARY KEY(recording_id, object_name),
+        FOREIGN KEY(recording_id) REFERENCES recordings(recording_id) ON DELETE CASCADE,
+        FOREIGN KEY(object_name) REFERENCES archives(object_name) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS recording_archives_recording ON recording_archives(recording_id);
+    """)
+    add_column(connection, "archives", "indexed_at TEXT")
+    add_column(connection, "recordings", "availability TEXT NOT NULL DEFAULT 'archived'")
+    add_column(connection, "recordings", "cache_updated_at TEXT")
+    add_column(connection, "recordings", "last_verified_at TEXT")
+
+
+def list_objects(cutoff):
+    data = json.loads(oci(["os", "object", "list", "--bucket-name", BUCKET, "--prefix", PREFIX, "--all", "--output", "json"])).get("data")
+    if not isinstance(data, list): raise RuntimeError("Object Storage returned no data array")
+    return sorted((item for item in data if item.get("name", "").endswith(".log.gz") and parse_time(item["time-created"]) >= cutoff), key=lambda item: item["time-created"])
+
+
+def get_archive(connection, item):
+    path = archive_path(item["name"])
+    row = connection.execute("SELECT local_path FROM archives WHERE object_name=?", (item["name"],)).fetchone()
+    if row and inside(ARCHIVES, row[0]) and Path(row[0]).is_file(): return Path(row[0]), False
+    partial = path.with_suffix(".part")
+    partial.unlink(missing_ok=True)
+    oci(["os", "object", "get", "--bucket-name", BUCKET, "--name", item["name"], "--file", str(partial)])
+    partial.replace(path)
+    connection.execute("""
+      INSERT INTO archives(object_name, created_at, local_path, downloaded_at, indexed_at)
+      VALUES(?,?,?,?,NULL) ON CONFLICT(object_name) DO UPDATE SET
+      created_at=excluded.created_at, local_path=excluded.local_path, downloaded_at=excluded.downloaded_at
+    """, (item["name"], item["time-created"], str(path), now().isoformat()))
+    return path, True
+
+
+def event_key(event):
+    recording_id = event["rec"]
+    if event.get("id") is not None: return f"{recording_id}:{event['id']}"
+    return f"{recording_id}:{hashlib.sha256(json.dumps(event, sort_keys=True).encode()).hexdigest()}"
+
+
+def import_archive(connection, object_name, path):
+    changed, imported = set(), 0
+    with gzip.open(path, "rt", encoding="utf-8", errors="replace") as stream:
+        for line in stream:
+            try:
+                outer = json.loads(line); inner = outer.get("data", {}).get("message")
+                event = json.loads(inner) if isinstance(inner, str) else inner
+                if not isinstance(event, dict) or not event.get("rec"): continue
+                recording_id = event["rec"]
+                # Establish a minimal parent row before recording the archive
+                # relationship; aggregate metadata is refreshed after import.
+                connection.execute("""
+                  INSERT OR IGNORE INTO recordings(recording_id,host,username,terminal,session_id,start_epoch,end_epoch,event_count,replay_file,updated_at,availability,last_verified_at)
+                  VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (recording_id, event.get("host"), event.get("user"), event.get("term"), str(event.get("session", "")), event.get("time"), event.get("time"), 0, str(recording_path(recording_id)), now().isoformat(), "archived", now().isoformat()))
+                connection.execute("""
+                  INSERT OR IGNORE INTO events(event_key,recording_id,event_sequence,event_position,event_time,host,username,session_id,terminal,event_json)
+                  VALUES(?,?,?,?,?,?,?,?,?,?)
+                """, (event_key(event), recording_id, event.get("id"), event.get("pos"), event.get("time"), event.get("host"), event.get("user"), str(event.get("session", "")), event.get("term"), json.dumps(event, separators=(",", ":"))))
+                connection.execute("INSERT OR IGNORE INTO recording_archives(recording_id,object_name) VALUES(?,?)", (recording_id, object_name))
+                changed.add(recording_id); imported += 1
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+    connection.execute("UPDATE archives SET indexed_at=? WHERE object_name=?", (now().isoformat(), object_name))
+    return imported, changed
+
+
+def update_recording(connection, recording_id):
+    values = connection.execute("""
+      SELECT MIN(host),MIN(username),MIN(terminal),MIN(session_id),MIN(event_time),MAX(event_time),COUNT(*)
+      FROM events WHERE recording_id=?
+    """, (recording_id,)).fetchone()
+    if not values or not values[-1]: return
+    path = recording_path(recording_id)
+    connection.execute("""
+      INSERT INTO recordings(recording_id,host,username,terminal,session_id,start_epoch,end_epoch,event_count,replay_file,updated_at,availability,last_verified_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(recording_id) DO UPDATE SET
+      host=excluded.host,username=excluded.username,terminal=excluded.terminal,session_id=excluded.session_id,
+      start_epoch=excluded.start_epoch,end_epoch=excluded.end_epoch,event_count=excluded.event_count,
+      replay_file=excluded.replay_file,updated_at=excluded.updated_at,last_verified_at=excluded.last_verified_at
+    """, (recording_id, *values, str(path), now().isoformat(), "ready" if path.is_file() else "archived", now().isoformat()))
+
+
+def build_replay(connection, recording_id):
+    path = recording_path(recording_id); temporary = path.with_suffix(".part")
+    with temporary.open("w", encoding="utf-8") as target:
+        for (event_json,) in connection.execute("SELECT event_json FROM events WHERE recording_id=? ORDER BY event_time,event_sequence", (recording_id,)):
+            target.write(event_json + "\n")
+    temporary.replace(path)
+    connection.execute("UPDATE recordings SET availability='ready', cache_updated_at=? WHERE recording_id=?", (now().isoformat(), recording_id))
+
+
+def cleanup(connection, cache_cutoff):
+    expired = connection.execute("SELECT recording_id,replay_file FROM recordings WHERE end_epoch < ?", (cache_cutoff.timestamp(),)).fetchall()
+    for recording_id, replay_file in expired:
+        if inside(RECORDINGS, replay_file): Path(replay_file).unlink(missing_ok=True)
+        connection.execute("DELETE FROM events WHERE recording_id=?", (recording_id,))
+        connection.execute("UPDATE recordings SET availability='archived',cache_updated_at=NULL WHERE recording_id=?", (recording_id,))
+    old_archives = connection.execute("SELECT object_name,local_path FROM archives WHERE created_at < ?", (cache_cutoff.isoformat(),)).fetchall()
+    for object_name, local_path in old_archives:
+        if inside(ARCHIVES, local_path): Path(local_path).unlink(missing_ok=True)
+        connection.execute("UPDATE archives SET local_path='',downloaded_at='' WHERE object_name=?", (object_name,))
+    return len(expired), len(old_archives)
+
+
+def main():
+    if not shutil.which("oci"): raise RuntimeError("OCI CLI is not in PATH")
+    ARCHIVES.mkdir(parents=True, exist_ok=True); RECORDINGS.mkdir(parents=True, exist_ok=True)
+    metadata_cutoff, cache_cutoff = now() - timedelta(days=METADATA_RETENTION_DAYS), now() - timedelta(days=LOCAL_CACHE_DAYS)
+    objects = list_objects(metadata_cutoff)
+    print(f"Found {len(objects)} archive object(s) from the last {METADATA_RETENTION_DAYS} day(s).")
+    connection = sqlite3.connect(DATABASE)
+    try:
+        initialise(connection); imported = 0; changed = set()
+        with connection:
+            for item in objects:
+                path, downloaded = get_archive(connection, item)
+                indexed = connection.execute("SELECT indexed_at FROM archives WHERE object_name=?", (item["name"],)).fetchone()[0]
+                if downloaded or not indexed:
+                    count, recordings = import_archive(connection, item["name"], path); imported += count; changed.update(recordings)
+            for recording_id in sorted(changed):
+                update_recording(connection, recording_id)
+                end_epoch = connection.execute("SELECT end_epoch FROM recordings WHERE recording_id=?", (recording_id,)).fetchone()[0]
+                if end_epoch >= cache_cutoff.timestamp(): build_replay(connection, recording_id)
+            removed_recordings, removed_archives = cleanup(connection, cache_cutoff)
+        count = connection.execute("SELECT COUNT(*) FROM recordings").fetchone()[0]
+    finally:
+        connection.close()
+    print(f"Imported {imported} event(s); updated {len(changed)} recording(s).")
+    print(f"Removed {removed_recordings} expired replay cache entries and {removed_archives} local archives.")
+    print(f"Catalogue now contains {count} recording(s).")
+
+
+if __name__ == "__main__":
+    try: main()
+    except (OSError, RuntimeError, sqlite3.Error, subprocess.CalledProcessError) as error:
+        print(f"TLOG replay synchronisation failed: {error}", file=sys.stderr); sys.exit(1)

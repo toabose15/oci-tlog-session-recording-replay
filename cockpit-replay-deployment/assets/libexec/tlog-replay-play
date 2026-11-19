@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""Safely launch tlog-play for one catalogue recording."""
+
+import argparse
+import math
+import os
+import re
+import sqlite3
+import sys
+from pathlib import Path
+
+
+DATABASE = "/var/lib/tlog-replay/catalog.db"
+RECORDINGS = Path("/var/lib/tlog-replay/recordings").resolve()
+RECORDING_ID = re.compile(r"[A-Za-z0-9-]{1,200}\Z")
+GOTO = re.compile(r"\d+:[0-5]\d:[0-5]\d\.\d{3}\Z")
+
+
+def recording_id(value):
+    if not RECORDING_ID.fullmatch(value):
+        raise argparse.ArgumentTypeError("invalid recording ID")
+    return value
+
+
+def goto_time(value):
+    if not GOTO.fullmatch(value):
+        raise argparse.ArgumentTypeError("goto must be HH:MM:SS.mmm")
+    return value
+
+
+def speed(value):
+    try:
+        result = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("speed must be a number") from error
+    if not math.isfinite(result) or not 0.0625 <= result <= 16:
+        raise argparse.ArgumentTypeError("speed must be between 0.0625 and 16")
+    return result
+
+
+parser = argparse.ArgumentParser(description="Play a catalogued TLOG recording")
+parser.add_argument("recording_id", type=recording_id)
+parser.add_argument("--goto", dest="goto", type=goto_time)
+parser.add_argument("--paused", action="store_true")
+parser.add_argument("--speed", type=speed)
+arguments = parser.parse_args()
+
+with sqlite3.connect(DATABASE) as connection:
+    row = connection.execute(
+        "SELECT replay_file FROM recordings WHERE recording_id = ?",
+        (arguments.recording_id,),
+    ).fetchone()
+
+if row is None:
+    sys.exit("Recording was not found")
+
+replay_file = Path(row[0]).resolve()
+if RECORDINGS not in replay_file.parents or not replay_file.is_file():
+    sys.exit("Replay file is unavailable")
+
+command = [
+    "/usr/bin/tlog-play",
+    "--reader=file",
+    "--file-path",
+    str(replay_file),
+]
+if arguments.goto:
+    command.extend(["--goto", arguments.goto])
+if arguments.paused:
+    command.append("--paused")
+if arguments.speed:
+    command.extend(["--speed", f"{arguments.speed:g}"])
+
+os.execv(command[0], command)

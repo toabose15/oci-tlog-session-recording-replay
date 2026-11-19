@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""Return safe, read-only health facts for the TLOG Cockpit module."""
+
+import json
+import sqlite3
+import subprocess
+from pathlib import Path
+
+BASE = Path("/var/lib/tlog-replay")
+DATABASE = BASE / "catalog.db"
+ARCHIVES = (BASE / "archives").resolve()
+RECORDINGS = (BASE / "recordings").resolve()
+
+
+def inside(directory, candidate):
+    try:
+        candidate.resolve().relative_to(directory)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def systemd_properties(unit, properties):
+    result = subprocess.run(
+        ["systemctl", "show", unit, *[f"--property={item}" for item in properties]],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    values = {}
+    for line in result.stdout.splitlines():
+        key, separator, value = line.partition("=")
+        if separator:
+            values[key] = value
+    return values
+
+
+def last_successful_sync(fallback):
+    result = subprocess.run(
+        [
+            "journalctl", "-u", "tlog-replay-sync.service", "--no-pager",
+            "--output=short-iso", "-n", "200",
+        ],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    successful = [
+        line for line in result.stdout.splitlines()
+        if "Finished Synchronize TLOG Object Storage archives into the replay catalogue." in line
+    ]
+    if successful:
+        return successful[-1].split(maxsplit=1)[0]
+    return fallback
+
+
+def existing_file(path, directory):
+    try:
+        return inside(directory, path) and path.is_file()
+    except OSError:
+        return False
+
+
+def main():
+    sync = systemd_properties(
+        "tlog-replay-sync.service",
+        ("Result", "ExecMainExitTimestamp"),
+    )
+    timer = systemd_properties(
+        "tlog-replay-sync.timer",
+        ("NextElapseUSecRealtime",),
+    )
+    recordings = replay_ready = archive_only = 0
+    archive_paths = set()
+    replay_paths = set()
+
+    connection = sqlite3.connect(DATABASE)
+    try:
+        rows = connection.execute(
+            "SELECT recording_id, replay_file FROM recordings"
+        ).fetchall()
+        recordings = len(rows)
+        for _, replay_file in rows:
+            path = Path(replay_file)
+            if existing_file(path, RECORDINGS):
+                replay_ready += 1
+                replay_paths.add(path.resolve())
+            else:
+                archive_only += 1
+        try:
+            archive_rows = connection.execute("SELECT local_path FROM archives").fetchall()
+        except sqlite3.OperationalError:
+            archive_rows = []
+        for (local_path,) in archive_rows:
+            path = Path(local_path) if local_path else Path("/nonexistent")
+            if existing_file(path, ARCHIVES):
+                archive_paths.add(path.resolve())
+    finally:
+        connection.close()
+
+    cache_bytes = sum(path.stat().st_size for path in archive_paths | replay_paths)
+    print(json.dumps({
+        "sync": {
+            "result": sync.get("Result", "unknown"),
+            "last_success": last_successful_sync(sync.get("ExecMainExitTimestamp", "")),
+            "next_scheduled": timer.get("NextElapseUSecRealtime", ""),
+        },
+        "catalogue": {
+            "recordings": recordings,
+            "replay_ready": replay_ready,
+            "archive_only": archive_only,
+        },
+        "cache": {
+            "archives": len(archive_paths),
+            "replay_files": len(replay_paths),
+            "bytes": cache_bytes,
+        },
+    }))
+
+
+if __name__ == "__main__":
+    main()
